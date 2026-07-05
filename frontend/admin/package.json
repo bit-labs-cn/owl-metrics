@@ -1,0 +1,31 @@
+{
+  "name": "@bit-labs.cn/owl-metrics-ui",
+  "version": "1.0.0",
+  "private": false,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@bit-labs.cn/owl-ui": "workspace:*",
+    "dayjs": "^1.11.13",
+    "echarts": "^5.6.0",
+    "element-plus": "^2.9.0",
+    "vue": "^3.5.13",
+    "vue-echarts": "^7.0.3"
+  },
+  "devDependencies": {
+    "@iconify-icons/ep": "^1.2.12",
+    "@iconify-icons/ri": "^1.2.10",
+    "@pureadmin/table": "^3.2.1"
+  },
+  "peerDependencies": {
+    "@bit-labs.cn/owl-ui": "^1.0.0"
+  },
+  "engines": {
+    "node": "^18.18.0 || ^20.9.0 || >=22.0.0",
+    "pnpm": ">=9"
+  }
+}
