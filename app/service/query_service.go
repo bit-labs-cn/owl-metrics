@@ -21,13 +21,13 @@ type QueryRangeReq struct {
 }
 
 type OverviewResp struct {
-	PageViews   int64            `json:"pageViews"`
-	UniqueUsers int64            `json:"uniqueUsers"`
-	Downloads   int64            `json:"downloads"`
-	TotalEvents int64            `json:"totalEvents"`
-	ByName      []NameCount      `json:"byName"`
-	FromDay     string           `json:"fromDay"`
-	ToDay       string           `json:"toDay"`
+	PageViews   int64       `json:"pageViews"`
+	UniqueUsers int64       `json:"uniqueUsers"`
+	Downloads   int64       `json:"downloads"`
+	TotalEvents int64       `json:"totalEvents"`
+	ByName      []NameCount `json:"byName"`
+	FromDay     string      `json:"fromDay"`
+	ToDay       string      `json:"toDay"`
 }
 
 type NameCount struct {
@@ -139,6 +139,10 @@ func (s *QueryService) Timeseries(ctx context.Context, req *QueryRangeReq) ([]Ti
 			histTo = dayBefore(today)
 		}
 		if histTo >= from {
+			rolledDays, err := s.rolledUpDays(ctx, req.AppID, from, histTo)
+			if err != nil {
+				return nil, err
+			}
 			rows, err := s.rollupRepo.WithContext(ctx).AggregateByDay(req.AppID, from, histTo, req.Name)
 			if err != nil {
 				return nil, err
@@ -150,6 +154,19 @@ func (s *QueryService) Timeseries(ctx context.Context, req *QueryRangeReq) ([]Ti
 					Count:   r.Count,
 					Uniques: r.Uniques,
 				})
+			}
+			rawRows, err := s.eventRepo.WithContext(ctx).AggregateByDay(req.AppID, from, histTo)
+			if err != nil {
+				return nil, err
+			}
+			for _, r := range rawRows {
+				if req.Name != "" && r.Name != req.Name {
+					continue
+				}
+				if _, ok := rolledDays[r.Day]; ok {
+					continue
+				}
+				points = append(points, TimeseriesPoint{Day: r.Day, Name: r.Name, Count: r.Count})
 			}
 		}
 	}
@@ -193,6 +210,10 @@ func (s *QueryService) TopN(ctx context.Context, req *QueryRangeReq) ([]TopNItem
 			histTo = dayBefore(today)
 		}
 		if histTo >= from {
+			rolledDays, err := s.rolledUpDays(ctx, req.AppID, from, histTo)
+			if err != nil {
+				return nil, err
+			}
 			rows, err := s.rollupRepo.WithContext(ctx).TopN(req.AppID, from, histTo, name, dimKey, limit)
 			if err != nil {
 				return nil, err
@@ -200,6 +221,18 @@ func (s *QueryService) TopN(ctx context.Context, req *QueryRangeReq) ([]TopNItem
 			for _, r := range rows {
 				merged[r.DimValue] += r.Count
 			}
+			eachDay(from, histTo, func(day string) {
+				if _, ok := rolledDays[day]; ok {
+					return
+				}
+				rawRows, err := s.eventRepo.WithContext(ctx).AggregateTopN(req.AppID, day, day, name, dimKey, limit)
+				if err != nil {
+					return
+				}
+				for _, r := range rawRows {
+					merged[r.DimValue] += r.Count
+				}
+			})
 		}
 	}
 	if to >= today {
@@ -274,11 +307,25 @@ func (s *QueryService) queryTotals(ctx context.Context, appID uint, from, to str
 			histTo = dayBefore(today)
 		}
 		if histTo >= from {
+			rolledDays, err := s.rolledUpDays(ctx, appID, from, histTo)
+			if err != nil {
+				return nil, err
+			}
 			rows, err := s.rollupRepo.WithContext(ctx).SumTotals(appID, from, histTo)
 			if err != nil {
 				return nil, err
 			}
 			for _, r := range rows {
+				merged[r.Name] += r.Count
+			}
+			rawRows, err := s.eventRepo.WithContext(ctx).AggregateByDay(appID, from, histTo)
+			if err != nil {
+				return nil, err
+			}
+			for _, r := range rawRows {
+				if _, ok := rolledDays[r.Day]; ok {
+					continue
+				}
 				merged[r.Name] += r.Count
 			}
 		}
@@ -299,6 +346,18 @@ func (s *QueryService) queryTotals(ctx context.Context, appID uint, from, to str
 	return out, nil
 }
 
+func (s *QueryService) rolledUpDays(ctx context.Context, appID uint, from, to string) (map[string]struct{}, error) {
+	rows, err := s.rollupRepo.WithContext(ctx).AggregateByDay(appID, from, to, "")
+	if err != nil {
+		return nil, err
+	}
+	days := make(map[string]struct{}, len(rows))
+	for _, r := range rows {
+		days[r.Day] = struct{}{}
+	}
+	return days, nil
+}
+
 func normalizeRange(from, to string) (string, string) {
 	today := time.Now().Format("2006-01-02")
 	if to == "" {
@@ -316,6 +375,18 @@ func dayBefore(day string) string {
 		return day
 	}
 	return t.AddDate(0, 0, -1).Format("2006-01-02")
+}
+
+func eachDay(from, to string, fn func(day string)) {
+	start, err1 := time.Parse("2006-01-02", from)
+	end, err2 := time.Parse("2006-01-02", to)
+	if err1 != nil || err2 != nil {
+		return
+	}
+	for !start.After(end) {
+		fn(start.Format("2006-01-02"))
+		start = start.AddDate(0, 0, 1)
+	}
 }
 
 func max64(a, b int64) int64 {

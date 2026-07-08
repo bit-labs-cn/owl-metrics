@@ -1,5 +1,6 @@
 import { reactive, ref, onMounted } from "vue";
 import { metricsAppAPI, type MetricsAppRow } from "../../../api/app";
+import { pickPageList } from "../../../utils/page";
 import { createColumns } from "./columns";
 
 export function useAppList() {
@@ -12,12 +13,13 @@ export function useAppList() {
   async function onSearch() {
     loading.value = true;
     try {
-      const { data } = await metricsAppAPI.getList({
+      const res = await metricsAppAPI.getList({
         page: pagination.currentPage,
         pageSize: pagination.pageSize
       });
-      dataList.value = (data?.list ?? []) as MetricsAppRow[];
-      pagination.total = data?.total ?? 0;
+      const page = pickPageList<MetricsAppRow>(res);
+      dataList.value = page.list;
+      pagination.total = page.total;
     } finally {
       loading.value = false;
     }

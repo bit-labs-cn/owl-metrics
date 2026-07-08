@@ -8,6 +8,7 @@ import { GridComponent, TooltipComponent, LegendComponent } from "echarts/compon
 import dayjs from "dayjs";
 import { metricsAppAPI, type MetricsAppRow } from "../../../api/app";
 import { metricsQueryAPI, type OverviewData, type TimeseriesPoint, type TopNItem, type EventRow } from "../../../api/query";
+import { pickPageList } from "../../../utils/page";
 import { createEventColumns } from "./eventColumns";
 import { PureTableBar } from "@bit-labs.cn/owl-ui/components/RePureTableBar";
 
@@ -31,19 +32,43 @@ const eventPageSize = ref(10);
 
 const eventColumns = createEventColumns();
 
+function lastMonthRange() {
+  return {
+    fromDay: dayjs().subtract(29, "day").format("YYYY-MM-DD"),
+    toDay: dayjs().format("YYYY-MM-DD")
+  };
+}
+
+function buildDayRange(from: string, to: string): string[] {
+  const days: string[] = [];
+  let cur = dayjs(from);
+  const end = dayjs(to);
+  while (cur.isBefore(end) || cur.isSame(end, "day")) {
+    days.push(cur.format("YYYY-MM-DD"));
+    cur = cur.add(1, "day");
+  }
+  return days;
+}
+
 const lineOption = computed(() => {
-  const days = [...new Set(timeseries.value.map(p => p.day))].sort();
+  const { fromDay: trendFrom, toDay: trendTo } = lastMonthRange();
+  const days = buildDayRange(trendFrom, trendTo);
   const names = [...new Set(timeseries.value.map(p => p.name))];
   return {
     tooltip: { trigger: "axis" },
     legend: { data: names },
     grid: { left: 40, right: 20, bottom: 30, top: 40 },
-    xAxis: { type: "category", data: days },
+    xAxis: {
+      type: "category",
+      data: days,
+      axisLabel: { rotate: days.length > 14 ? 45 : 0, hideOverlap: true }
+    },
     yAxis: { type: "value", minInterval: 1 },
     series: names.map(name => ({
       name,
       type: "line",
       smooth: true,
+      showSymbol: false,
       data: days.map(d => timeseries.value.find(p => p.day === d && p.name === name)?.count ?? 0)
     }))
   };
@@ -83,7 +108,7 @@ async function refresh() {
   try {
     const [ov, ts, tp, tos, ev] = await Promise.all([
       metricsQueryAPI.overview(params),
-      metricsQueryAPI.timeseries(params),
+      metricsQueryAPI.timeseries({ appId: appId.value, ...lastMonthRange() }),
       metricsQueryAPI.topn({ ...params, name: "page_view", dimKey: "platform", limit: 8 }),
       metricsQueryAPI.topn({ ...params, name: "download", dimKey: "os", limit: 8 }),
       metricsQueryAPI.events({ ...params, page: eventPage.value, pageSize: eventPageSize.value })
@@ -92,8 +117,9 @@ async function refresh() {
     timeseries.value = (ts.data ?? []) as TimeseriesPoint[];
     topPlatform.value = (tp.data ?? []) as TopNItem[];
     topOS.value = (tos.data ?? []) as TopNItem[];
-    events.value = (ev.data?.list ?? []) as EventRow[];
-    eventTotal.value = ev.data?.total ?? 0;
+    const page = pickPageList<EventRow>(ev);
+    events.value = page.list;
+    eventTotal.value = page.total;
   } finally {
     loading.value = false;
   }
@@ -122,7 +148,7 @@ onMounted(async () => {
           <el-date-picker v-model="toDay" type="date" value-format="YYYY-MM-DD" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="loading" @click="refresh">查询</el-button>
+          <el-button type="primary" :loading="loading" @click="() => { eventPage = 1; refresh(); }">查询</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -144,7 +170,7 @@ onMounted(async () => {
 
     <el-row :gutter="16" class="mb-4">
       <el-col :span="14">
-        <el-card shadow="never" header="趋势（按天）">
+        <el-card shadow="never" header="趋势（按天，最近 30 天）">
           <VChart :option="lineOption" autoresize style="height: 320px" />
         </el-card>
       </el-col>
