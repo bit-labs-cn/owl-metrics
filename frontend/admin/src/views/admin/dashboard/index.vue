@@ -39,6 +39,41 @@ function lastMonthRange() {
   };
 }
 
+function startOfWeekMonday(d = dayjs()) {
+  const daysFromMonday = (d.day() + 6) % 7;
+  return d.subtract(daysFromMonday, "day");
+}
+
+type QuickRange = "today" | "week" | "month";
+
+function applyQuickRange(range: QuickRange) {
+  const today = dayjs().format("YYYY-MM-DD");
+  switch (range) {
+    case "today":
+      fromDay.value = today;
+      toDay.value = today;
+      break;
+    case "week":
+      fromDay.value = startOfWeekMonday().format("YYYY-MM-DD");
+      toDay.value = today;
+      break;
+    case "month":
+      fromDay.value = dayjs().startOf("month").format("YYYY-MM-DD");
+      toDay.value = today;
+      break;
+  }
+  eventPage.value = 1;
+  refresh();
+}
+
+const activeQuickRange = computed<QuickRange | "">(() => {
+  const today = dayjs().format("YYYY-MM-DD");
+  if (fromDay.value === today && toDay.value === today) return "today";
+  if (fromDay.value === startOfWeekMonday().format("YYYY-MM-DD") && toDay.value === today) return "week";
+  if (fromDay.value === dayjs().startOf("month").format("YYYY-MM-DD") && toDay.value === today) return "month";
+  return "";
+});
+
 function buildDayRange(from: string, to: string): string[] {
   const days: string[] = [];
   let cur = dayjs(from);
@@ -146,6 +181,19 @@ onMounted(async () => {
         </el-form-item>
         <el-form-item label="结束">
           <el-date-picker v-model="toDay" type="date" value-format="YYYY-MM-DD" />
+        </el-form-item>
+        <el-form-item label="快捷">
+          <el-button-group>
+            <el-button :type="activeQuickRange === 'today' ? 'primary' : 'default'" @click="applyQuickRange('today')">
+              今日
+            </el-button>
+            <el-button :type="activeQuickRange === 'week' ? 'primary' : 'default'" @click="applyQuickRange('week')">
+              本周
+            </el-button>
+            <el-button :type="activeQuickRange === 'month' ? 'primary' : 'default'" @click="applyQuickRange('month')">
+              本月
+            </el-button>
+          </el-button-group>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="loading" @click="() => { eventPage = 1; refresh(); }">查询</el-button>
