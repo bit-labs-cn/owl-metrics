@@ -45,7 +45,7 @@ func (s *SubAppMetrics) AfterMigrate(db *gorm.DB) error {
 
 // ServiceProviders 获取服务提供者列表。
 func (s *SubAppMetrics) ServiceProviders() []foundation.ServiceProvider {
-	return nil
+	return []foundation.ServiceProvider{}
 }
 
 // Menu 获取菜单配置。
