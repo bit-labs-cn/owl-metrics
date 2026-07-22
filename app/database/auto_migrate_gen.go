@@ -2,14 +2,13 @@ package database
 
 import (
 	"bit-labs.cn/owl-metrics/app/model"
-	"gorm.io/gorm"
 )
 
-// Migrate 执行数据库迁移。
-func Migrate(db *gorm.DB) {
-	_ = db.AutoMigrate(
+// Models 返回待自动迁移的 model 列表。
+func Models() []any {
+	return []any{
 		&model.MetricsApp{},
 		&model.MetricsEvent{},
 		&model.MetricsRollupDaily{},
-	)
+	}
 }
