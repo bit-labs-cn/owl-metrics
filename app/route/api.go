@@ -1,10 +1,12 @@
 package route
 
 import (
-	v1 "bit-labs.cn/owl-metrics/app/handle/v1"
 	"time"
 
 	"bit-labs.cn/owl"
+	"bit-labs.cn/owl-admin/app/middleware"
+	"bit-labs.cn/owl-admin/app/service"
+	v1 "bit-labs.cn/owl-metrics/app/handle/v1"
 	"bit-labs.cn/owl/contract/foundation"
 	"bit-labs.cn/owl/provider/router"
 	middleware2 "bit-labs.cn/owl/provider/router/middleware"
@@ -12,7 +14,7 @@ import (
 )
 
 var (
-	appMenu      *router.Menu
+	appMenu       *router.Menu
 	dashboardMenu *router.Menu
 )
 
@@ -41,8 +43,10 @@ func InitApi(app foundation.Application, appName string) {
 		collect *v1.CollectHandle,
 		appH *v1.AppHandle,
 		query *v1.QueryHandle,
+		logService *service.LogService,
 	) {
 		gv1 := engine.Group("/api/v1")
+		gv1.Use(middleware.OperationLog(logService))
 
 		collectRoute := router.NewRouteInfoBuilder(appName, collect, gv1, router.MenuOption{})
 		collectRoute.Use(middleware2.RateLimiter(time.Second*1, 20))
