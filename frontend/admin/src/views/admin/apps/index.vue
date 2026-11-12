@@ -6,7 +6,7 @@ import AppForm from "./AppForm.vue";
 import type { MetricsAppFormData } from "./AppForm.vue";
 import type { MetricsAppRow } from "../../../api/app";
 import { metricsAppAPI } from "../../../api/app";
-import { addDialog } from "@bit-labs.cn/owl-ui/components/ReDialog";
+import { dialogService } from "@bit-labs.cn/owl-ui/components/ReDialog";
 import { PureTableBar } from "@bit-labs.cn/owl-ui/components/RePureTableBar";
 import { useRenderIcon } from "@bit-labs.cn/owl-ui/components/ReIcon/src/hooks";
 import AddFill from "@iconify-icons/ri/add-circle-line";
@@ -32,7 +32,7 @@ function formatOrigins(origins?: string[]) {
 
 function openDialog(title = "新增", row?: MetricsAppRow) {
   const isEdit = title === "编辑";
-  addDialog({
+  dialogService.open({
     title: `${title}指标应用`,
     props: {
       formInline: {
